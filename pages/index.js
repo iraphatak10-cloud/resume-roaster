@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+import Header from "../components/Header";
+import UploadDropzone from "../components/UploadDropzone";
+import ScoreCircle from "../components/ScoreCircle";
+import FeedbackCard from "../components/FeedbackCard";
 
 const demoReport = {
   score: 62,
@@ -87,7 +91,7 @@ export default function Home() {
     event.preventDefault();
     setAuthError("");
     setAuthLoading(true);
-    const path = authMode === "register" ? "/api/auth/register" : "/api/auth/login";
+    const path = authMode === "register" ? "/api/auth/signup" : "/api/auth/login";
 
     try {
       const response = await fetch(path, {
@@ -166,43 +170,62 @@ export default function Home() {
     setError("");
   }
 
-  function handleFileChange(event) {
+  async function handleFileChange(event) {
     const file = event.target.files?.[0];
+    event.target.value = "";
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith(".txt")) {
-      setError("For now, please use a plain-text .txt file.");
+    const name = file.name.toLowerCase();
+    if (name.endsWith(".txt")) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setResume(String(reader.result || ""));
+        setError("");
+      };
+      reader.onerror = () => setError("We couldn't read that file.");
+      reader.readAsText(file);
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setResume(String(reader.result || ""));
-      setError("");
-    };
-    reader.onerror = () => setError("We couldn't read that file.");
-    reader.readAsText(file);
+    if (!name.endsWith(".pdf")) {
+      setError("Upload a PDF or a plain-text .txt file.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = "";
+      for (let index = 0; index < bytes.length; index += 0x8000) {
+        binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+      }
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: file.name, data: btoa(binary) })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setError(payload.error || "We couldn't read that PDF.");
+        return;
+      }
+      setResume(payload.text || "");
+    } catch {
+      setError("We couldn't read that PDF.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <main className="page">
-      <header className="nav">
-        <a href="/" className="wordmark">
-          ROAST <span>/</span> OFFICE
-        </a>
-        {user ? (
-          <div className="account-bar">
-            <span>{user.name}</span>
-            <button className="ghost" onClick={signOut}>
-              SIGN OUT
-            </button>
-          </div>
-        ) : (
-          <button className="ghost" onClick={() => setShowAuth((open) => !open)}>
-            {showAuth ? "CLOSE" : "SIGN IN"}
-          </button>
-        )}
-      </header>
+      <Header
+        user={user}
+        authOpen={showAuth}
+        onSignOut={signOut}
+        onToggleAuth={() => setShowAuth((open) => !open)}
+      />
 
       {showAuth && !user && (
         <form className="auth-panel" onSubmit={submitAuth}>
@@ -303,7 +326,7 @@ export default function Home() {
           <p className="meta">SUBMISSION</p>
           <h2>THE RECORD</h2>
           <p className="rail-copy">
-            Paste the document or attach a plain-text file. The analysis
+            Paste the document or upload a PDF. The analysis
             addresses structure, evidence, and tone.
           </p>
         </div>
@@ -311,14 +334,7 @@ export default function Home() {
         <div className="dossier">
           <div className="dossier-head">
             <span className="meta">DOCUMENT</span>
-            <label className="file-control">
-              UPLOAD .TXT
-              <input
-                type="file"
-                accept=".txt,text/plain"
-                onChange={handleFileChange}
-              />
-            </label>
+            <UploadDropzone onFile={handleFileChange} busy={loading} />
           </div>
 
           <label className="field-label" htmlFor="resume">
@@ -371,15 +387,7 @@ export default function Home() {
           </div>
 
           <div className="verdict-grid">
-            <div className="score-col">
-              <p className="meta">SCORE</p>
-              <p className="score">
-                {report.score ?? "—"}
-                <span>/100</span>
-              </p>
-              <div className="rule" />
-              <p className="score-note">Measured against evidence, not ambition.</p>
-            </div>
+            <ScoreCircle score={report.score} />
 
             <div className="roast-col">
               <p className="meta">THE ROAST</p>
@@ -394,18 +402,15 @@ export default function Home() {
             <div className="rec-list">
               {(report.suggestions || report.improvements || []).map(
                 (item, index) => (
-                  <article className="rec" key={index}>
-                    <span className="rec-num">
-                      0{index + 1}
-                    </span>
-                    <p>
-                      {typeof item === "string"
+                  <FeedbackCard
+                    key={index}
+                    index={index}
+                    text={
+                      typeof item === "string"
                         ? item
-                        : item.text ||
-                          item.suggestion ||
-                          "Review this suggestion."}
-                    </p>
-                  </article>
+                        : item.text || item.suggestion || "Review this suggestion."
+                    }
+                  />
                 )
               )}
             </div>
