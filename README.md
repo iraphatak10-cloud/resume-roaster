@@ -7,7 +7,7 @@ Live site: https://resume-roaster-opal.vercel.app
 ## What it does
 
 - React homepage for the resume, the verdict, and the account panel
-- `POST /api/roast` sends the text to Gemini, then Claude if that key is set, then a local analyzer if both are unavailable
+- `POST /api/roast` sends the text to Gemini. If Gemini is unavailable, a local analyzer writes the review.
 - `POST /api/upload` extracts text from a PDF
 - `POST /api/auth/signup` and `POST /api/auth/login` create and open accounts
 - Saved roasts stay in Sequelize (SQLite on your computer, Postgres when `DATABASE_URL` is set)
@@ -21,4 +21,4 @@ npm run dev
 
 Open http://127.0.0.1:3000
 
-Copy `.env.example` to `.env.local` and fill in `GEMINI_API_KEY` and `JWT_SECRET`. `ANTHROPIC_API_KEY` is optional.
+Copy `.env.example` to `.env.local` and fill in `GEMINI_API_KEY` and `JWT_SECRET`. Reviews are written by Gemini.

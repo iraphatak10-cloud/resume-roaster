@@ -1,5 +1,4 @@
 const { analyzeResume } = require("../../lib/analyzeResume");
-const { roastWithClaude } = require("../../lib/claude");
 const { roastWithGemini } = require("../../lib/gemini");
 const { persistRoast } = require("../../lib/db");
 const { readUserId } = require("../../lib/auth");
@@ -35,15 +34,11 @@ export default async function handler(req, res) {
   let source = "local";
 
   try {
-    if (process.env.GEMINI_API_KEY) {
-      report = await roastWithGemini(resume);
-      source = "gemini";
-    } else if (process.env.ANTHROPIC_API_KEY) {
-      report = await roastWithClaude(resume);
-      source = "claude";
-    } else {
-      throw new Error("No AI key is set.");
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY is not set.");
     }
+    report = await roastWithGemini(resume);
+    source = "gemini";
   } catch (error) {
     console.error(error.message);
     report = analyzeResume(resume);
